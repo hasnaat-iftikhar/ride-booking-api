@@ -1,6 +1,11 @@
-const { DataTypes, Sequelize } = require("sequelize");
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database';
 
-const Ride = Sequelize.define(
+// Models
+import User from './user';
+import Driver from './driver';
+
+const Ride = sequelize.define(
 	"Ride",
 	{
 		ride_id: {
@@ -59,4 +64,4 @@ const Ride = Sequelize.define(
 Ride.belongsTo(Driver, { foreignKey: "driver_id" });
 Ride.belongsTo(User, { foreignKey: "user_id" });
 
-module.exports = Ride;
+export default Ride;

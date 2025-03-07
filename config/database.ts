@@ -1,4 +1,4 @@
-const { Sequelize } = require("sequelize");
+import { Sequelize } from "sequelize"
 
 const sequelize = new Sequelize('ride_booking_db', 'api_admin', 'Pakistanzindabad@123', {
     host: "localhost",
@@ -6,4 +6,4 @@ const sequelize = new Sequelize('ride_booking_db', 'api_admin', 'Pakistanzindaba
     logging: false
 });
 
-module.exports = sequelize;
+export default sequelize;
