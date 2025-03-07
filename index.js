@@ -2,12 +2,25 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
-// Components
-const { register, login } = require('./apps/auth/authController');
+// Controllers
+const authRouter = require('./apps/auth/entry-points/api/authController');
+const driverRouter = require('./apps/drivers/entry-points/api/driverController');
+const riderRouter = require('./apps/riders/entry-points/api/riderController');
 
-// Endpoints
-app.post('/register', register);
-app.post('/login', login);
+// Configurations
+const sequelize = require("./config/database");
+
+// Database connection
+sequelize.authenticate().then(() => {
+    console.log("Database connected successfully");
+}).catch(err => {
+    console.log("Error: ", err);
+});
+
+// Mount the routers with base paths
+app.use('/auth', authRouter);
+app.use('/drivers', driverRouter);
+app.use('/riders', riderRouter);
 
 // Start the server
 app.listen(3000, () => {
