@@ -9,6 +9,7 @@ import sequelize from "./config/database";
 
 // Controllers
 import authRouter from './apps/auth/entry-points/api/authController';
+import riderRouter from './apps/riders/entry-points/api/riderController';
 
 const app = express();
 app.use(express.json());
@@ -26,6 +27,7 @@ sequelize.authenticate().then(() => {
 
 // Endpoints
 app.use('/auth', authRouter);
+app.use('/rider', riderRouter);
 
 // Middlewares
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

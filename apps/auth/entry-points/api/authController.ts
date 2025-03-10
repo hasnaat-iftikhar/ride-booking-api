@@ -5,11 +5,14 @@ import { loginUser, registerUser } from "../../domain/authService";
 
 // Type definitions
 import { User as UserType } from "../../../../models/types";
+import { RequestValidator } from "../../../../libraries/validators/requestValidator";
+import { loginSchema, registerSchema } from "../../../../libraries/validators/schemas/authSchemas";
 
 const router = express.Router();
 
 router.post(
-	"/register",
+	"/register", 
+	RequestValidator.validate(registerSchema),
 	async (req: Request, res: Response, next: NextFunction) => {
 		const { name, email, phone_number, password } = req.body;
 
@@ -31,6 +34,7 @@ router.post(
 
 router.post(
 	"/login",
+	RequestValidator.validate(loginSchema),
 	async (req: Request, res: Response, next: NextFunction) => {
 		const { email, password } = req.body;
 
