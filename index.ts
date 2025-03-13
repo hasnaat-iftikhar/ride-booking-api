@@ -5,8 +5,11 @@ import { DatabaseError } from 'sequelize';
 // Load environment variables
 dotenv.config();
 
+// Rate Limiter
+import rateLimit from "express-rate-limit";
+
 // Middlewares
-import errorHandler from './middleware/errorHandler';
+import errorHandler from "./middleware/errorHandler";
 
 // Configurations
 import sequelize from "./config/database";
@@ -18,6 +21,16 @@ import driverRouter from './apps/drivers/entry-points/api/driverController';
 
 const app = express();
 app.use(express.json());
+
+// Rate limiting to sensitive routes
+const authLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 5, // 5 requests per windowMs
+	message: "Too many login attempts, please try again later",
+});
+
+app.use("/auth/login", authLimiter);
+app.use("/driver/login", authLimiter);
 
 // Database connection
 sequelize.authenticate().then(() => {
