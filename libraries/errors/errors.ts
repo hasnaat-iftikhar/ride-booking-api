@@ -1,7 +1,7 @@
 import { appError } from "./AppError";
 
 // Enum type
-import { CommonErrorType } from "./errors.enum";
+import type { CommonErrorType } from "./errors.enum";
 
 const commonErrorMapping = {
     notFound: { statusCode: 404, errorName: "Resource Not Found" },
@@ -23,9 +23,8 @@ export const commonError = (key: CommonErrorType) => {
             "The provided error type is not recognized",
             true
         );
-    };
-    
-    return error;
-};
+	}
 
+	return error;
+};
 

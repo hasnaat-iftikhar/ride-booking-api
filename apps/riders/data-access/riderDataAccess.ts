@@ -3,7 +3,7 @@ import Driver from "../../../models/driver";
 import Ride from "../../../models/ride";
 
 // Type definations
-import { Ride as RideType } from "../../../models/types";
+import type { Ride as RideType } from "../../../models/types";
 
 /**
  * Data Access Layer for rider-related database operations

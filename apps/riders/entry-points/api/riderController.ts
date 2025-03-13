@@ -1,70 +1,51 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { type Request, type Response, type NextFunction } from "express"
 
 // Service
-import { getUserRideHistory, requestRide } from "../../domain/riderService";
+import { getUserRideHistory, requestRide } from "../../domain/riderService"
 
-// Error Library
-import { appError } from "../../../../libraries/errors/AppError";
-import { CommonErrorType } from "../../../../libraries/errors/errors.enum";
-import { commonError } from "../../../../libraries/errors/errors";
+// Middleware
+import { authenticateJWT } from "../../../../middleware/authMiddleware"
 
-const router = express.Router();
+// Success Response
+import { createSuccessResponse, SuccessType } from "../../../../libraries/responses/successResponse"
 
-// Middleware to verify JWT token (simplified)
-const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
-	if (!req.headers.authorization) {
-		return appError(
-			"Authetication required",
-			commonError(CommonErrorType.UN_AUTHORIZED).statusCode,
-			commonError(CommonErrorType.UN_AUTHORIZED).errorName,
-			true
-		);
-	}
+const router = express.Router()
 
-	next();
-};
+router.post("/request-ride", authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
+  const { pickup_location, dropoff_location } = req.body
 
-router.post(
-	"/request-ride",
-    authenticateUser,
-	async (req: Request, res: Response, next: NextFunction) => {
-		const { pickup_location, dropoff_location } = req.body;
+  const userId = req.user?.userId as string
 
-		const userId = req.headers.user_id as string;
+  try {
+    console.log("Ride request received:", {
+      userId,
+      pickup_location,
+      dropoff_location,
+    })
 
-		try {
-			console.log("Ride request received:", {
-				userId,
-				pickup_location,
-				dropoff_location,
-			});
+    const ride = await requestRide(userId, pickup_location, dropoff_location)
 
-			const ride = await requestRide(userId, pickup_location, dropoff_location);
+    console.log("Ride created successfully:", ride.ride_id)
 
-			console.log("Ride created successfully:", ride.ride_id);
+    res.status(201).json(createSuccessResponse(SuccessType.CREATED, ride, "Ride requested successfully"))
+  } catch (error) {
+    console.error("Ride request error:", error)
+    next(error)
+  }
+})
 
-			res.status(201).json(ride);
-		} catch (error) {
-			console.error("Ride request error:", error);
-			next(error);
-		}
-	}
-);
+router.get("/rides", authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
+  const userId = req.user?.userId as string
 
-router.get(
-    "/rides",
-    authenticateUser,
-    async (req: Request, res: Response, next: NextFunction) => {
-        const userId = req.headers.user_id as string;
+  try {
+    const rides = await getUserRideHistory(userId)
 
-        try {
-            const rides = await getUserRideHistory(userId);
-            res.status(200).json(rides)
-        } catch (error) {
-            console.error("Get rides error:", error)
-            next(error)
-        }
-    }
-);
+    res.status(200).json(createSuccessResponse(SuccessType.RETRIEVED, rides, "Ride history retrieved successfully"))
+  } catch (error) {
+    console.error("Get rides error:", error)
+    next(error)
+  }
+})
 
-export default router;
+export default router
+

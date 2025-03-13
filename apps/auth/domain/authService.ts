@@ -1,95 +1,86 @@
-import jwt from "jsonwebtoken";
+import { authDataAccess } from "../data-access/authDataAccess"
 
 // Type defination
-import { User as UserType } from "../../../models/types";
+import type { User as UserType } from "../../../models/types"
 
 // Libraries
-import { appError } from "../../../libraries/errors/AppError";
-
-// Utility files
-import { commonError } from "../../../libraries/errors/errors";
+import { appError } from "../../../libraries/errors/AppError"
+import { commonError } from "../../../libraries/errors/errors"
 
 // Enum
-import { CommonErrorType } from "../../../libraries/errors/errors.enum";
-import { authDataAccess } from "../data-access/authDataAccess";
+import { CommonErrorType } from "../../../libraries/errors/errors.enum"
 
-// ENV Variables
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+// JWT Authenticator
+import { JwtAuthenticator } from "../../../libraries/authenticator/jwtAuthenticator"
 
 export const registerUser = async (
-	name: string,
-	email: string,
-	phone_number: string,
-	password: string
+  name: string,
+  email: string,
+  phone_number: string,
+  password: string,
 ): Promise<UserType> => {
-	try {
-		// Check if user already exists
-		const existingUser = await authDataAccess.findUserByEmail(email);
+  try {
+    // Check if user already exists
+    const existingUser = await authDataAccess.findUserByEmail(email)
 
-		if (existingUser) {
-			return appError(
-				"User Already Exists Error",
-				commonError(CommonErrorType.CONFLICT).statusCode,
-				commonError(CommonErrorType.CONFLICT).errorName,
-				true
-			);
-		}
+    if (existingUser) {
+      return appError(
+        "User Already Exists Error",
+        commonError(CommonErrorType.CONFLICT).statusCode,
+        commonError(CommonErrorType.CONFLICT).errorName,
+        true,
+      )
+    }
 
-		// Create new user
-		const newUser = await authDataAccess.createUser({
-			name,
-			email,
-			phone_number,
-			password,
-		});
+    // Create new user
+    const newUser = await authDataAccess.createUser({
+      name,
+      email,
+      phone_number,
+      password,
+    })
 
-		// Remove password from returned user object
-		const { password: _, ...userWithoutPassword } = newUser;
-		return userWithoutPassword as UserType;
-	} catch (error) {
-		console.error("Error in registerUser service:", error);
-		throw error;
-	}
-};
+    // Remove password from returned user object
+    const { password: _, ...userWithoutPassword } = newUser;
+    return userWithoutPassword as UserType;
+  } catch (error) {
+    console.error("Error in registerUser service:", error)
+    throw error
+  }
+}
 
 export const loginUser = async (
-	email: string,
-	password: string
+  email: string,
+  password: string,
 ): Promise<{ user: Partial<UserType>; token: string }> => {
-	try {
-		// Verify user credentials
-		const user = await authDataAccess.verifyUserCredentials(email, password);
+  try {
+    // Verify user credentials
+    const user = await authDataAccess.verifyUserCredentials(email, password)
 
-		if (!user) {
-			return appError(
-				"Invalid Credentials Error",
-				commonError(CommonErrorType.UN_AUTHORIZED).statusCode,
-				commonError(CommonErrorType.UN_AUTHORIZED).errorName,
-				true
+    if (!user) {
+      return appError(
+        "Invalid Credentials Error",
+        commonError(CommonErrorType.UN_AUTHORIZED).statusCode,
+        commonError(CommonErrorType.UN_AUTHORIZED).errorName,
+        true,
 			);
 		}
 
-		// Generate JWT Token
-		const token = jwt.sign(
-			{
-				user_id: user.user_id,
-				email: user.email,
-			},
-			JWT_SECRET,
-			{
-				expiresIn: "24h",
-			}
-		);
+		// Generate JWT Token using the JwtAuthenticator
+    const token = JwtAuthenticator.generateToken({
+      userId: user.user_id,
+      email: user.email,
+    });
 
-		// Remove password from returned user object
-		const { password: _, ...userWithoutPassword } = user;
+    // Remove password from returned user object
+    const { password: _, ...userWithoutPassword } = user;
 
-		return {
-			user: userWithoutPassword,
-			token,
+    return {
+      user: userWithoutPassword,
+      token,
 		};
 	} catch (error) {
 		console.error("Error in loginUser service:", error);
 		throw error;
 	}
-};
+}

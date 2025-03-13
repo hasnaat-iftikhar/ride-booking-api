@@ -6,7 +6,7 @@ import { commonError } from "../../../libraries/errors/errors";
 import { CommonErrorType } from "../../../libraries/errors/errors.enum";
 
 // Type definations
-import { Ride as RideType } from "../../../models/types";
+import type { Ride as RideType } from "../../../models/types";
 
 export const requestRide = async (
 	userId: string,

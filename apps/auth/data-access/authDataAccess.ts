@@ -4,7 +4,7 @@ import argon2 from "argon2";
 import User from "../../../models/user";
 
 // Type defination
-import { User as UserType } from "../../../models/types";
+import type { User as UserType } from "../../../models/types";
 
 class AuthDataAccess {
 	/**

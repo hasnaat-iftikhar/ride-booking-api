@@ -14,7 +14,7 @@ export interface Driver {
     email: string;
     phone_number: string;
     license_number: string;
-    status: 'available' | 'busy' | 'offline';
+    status: 'online' | 'busy' | 'offline';
     password: string;
     created_at: Date;
     updated_at: Date;

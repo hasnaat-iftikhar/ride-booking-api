@@ -1,34 +1,61 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from "express";
 
 // Auth library
-import { JwtAuthenticator } from '../libraries/authenticator/jwtAuthenticator';
+import { JwtAuthenticator } from "../libraries/authenticator/jwtAuthenticator";
+
+// Error Library
+import { appError } from "../libraries/errors/AppError";
+import { commonError } from "../libraries/errors/errors";
+import { CommonErrorType } from "../libraries/errors/errors.enum";
 
 declare global {
-  namespace Express {
-    interface Request {
-      user?: { userId: string; email: string };
-    }
-  }
-};
+	namespace Express {
+		interface Request {
+			user?: { userId: string; email: string };
+		}
+	}
+}
 
-export const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
+export const authenticateJWT = (
+	req: Request,
+	res: Response,
+	next: NextFunction
+) => {
+	const authHeader = req.headers.authorization;
 
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
+	if (!authHeader) {
+		return next(
+			appError(
+				"Authentication Required",
+				commonError(CommonErrorType.UN_AUTHORIZED).statusCode,
+				"Authentication token is required",
+				true
+			)
+		);
+	}
 
-  const token = authHeader.split(' ')[1];
+	const parts = authHeader.split(" ");
 
-  try {
-    const decoded = JwtAuthenticator.verifyToken(token);
-    
-    console.log("decoded token: ", decoded);
+	if (parts.length !== 2 || parts[0] !== "Bearer") {
+		return next(
+			appError(
+				"Invalid Token Format",
+				commonError(CommonErrorType.UN_AUTHORIZED).statusCode,
+				"Token format should be: Bearer [token]",
+				true
+			)
+		);
+	}
 
-    req.user = decoded;
+	const token = parts[1];
 
-    next();
-  } catch (error) {
-    next(error);
-  }
+	try {
+		const decoded = JwtAuthenticator.verifyToken(token);
+
+		req.user = decoded;
+
+		next();
+	} catch (error) {
+		next(error);
+	}
 };
