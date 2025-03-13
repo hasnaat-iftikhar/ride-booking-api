@@ -41,8 +41,8 @@ export const registerUser = async (
     })
 
     // Remove password from returned user object
-    const { password: _, ...userWithoutPassword } = newUser;
-    return userWithoutPassword as UserType;
+    const { password: _, ...userWithoutPassword } = newUser
+    return userWithoutPassword as UserType
   } catch (error) {
     console.error("Error in registerUser service:", error)
     throw error
@@ -63,24 +63,25 @@ export const loginUser = async (
         commonError(CommonErrorType.UN_AUTHORIZED).statusCode,
         commonError(CommonErrorType.UN_AUTHORIZED).errorName,
         true,
-			);
-		}
+      )
+    }
 
-		// Generate JWT Token using the JwtAuthenticator
+    // Generate JWT Token using the JwtAuthenticator
     const token = JwtAuthenticator.generateToken({
       userId: user.user_id,
       email: user.email,
-    });
-
+    })
+    
     // Remove password from returned user object
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = user
 
     return {
       user: userWithoutPassword,
       token,
-		};
-	} catch (error) {
-		console.error("Error in loginUser service:", error);
-		throw error;
-	}
+    }
+  } catch (error) {
+    console.error("Error in loginUser service:", error)
+    throw error
+  }
 }
+

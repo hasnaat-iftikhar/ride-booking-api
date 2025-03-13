@@ -40,7 +40,7 @@ export class DriverDataAccess {
 
 			const driver = await Driver.create({
 				...driverData,
-				status: "offline", // Default status
+				status: "offline",
 				password: hashedPassword,
 			});
 

@@ -7,6 +7,7 @@ import { CommonErrorType } from "../../../libraries/errors/errors.enum";
 
 // Type definations
 import type { Ride as RideType } from "../../../models/types";
+import { driverDataAccess } from "../../drivers/data-access/driverDataAccess";
 
 export const requestRide = async (
 	userId: string,
@@ -60,3 +61,66 @@ function calculateFare(pickup: string, dropoff: string): number {
 
 	return Number((baseFare + perKmRate * estimatedDistance).toFixed(2));
 }
+
+// In riderService.ts
+export const cancelRide = async (
+	userId: string,
+	rideId: string
+): Promise<RideType> => {
+	try {
+		// 1. Get the ride and verify it belongs to the user
+		const ride = await riderDataAccess.findRideById(rideId);
+
+		if (!ride) {
+			return appError(
+				"Ride Not Found",
+				commonError(CommonErrorType.NOT_FOUND).statusCode,
+				commonError(CommonErrorType.NOT_FOUND).errorName,
+				true
+			);
+		}
+
+		if (ride.user_id !== userId) {
+			return appError(
+				"Unauthorized",
+				commonError(CommonErrorType.FORBIDDEN).statusCode,
+				"You can only cancel your own rides",
+				true
+			);
+		}
+
+		if (ride.status !== "requested" && ride.status !== "in_progress") {
+			return appError(
+				"Cannot Cancel Ride",
+				commonError(CommonErrorType.BAD_REQUEST).statusCode,
+				"Ride cannot be canceled in its current state",
+				true
+			);
+		}
+
+		// 2. Update ride status
+		const updatedRide = await riderDataAccess.updateRideStatus(
+			rideId,
+			"canceled"
+		);
+
+		if (!updatedRide) {
+			return appError(
+				"Ride Update Failed",
+				commonError(CommonErrorType.SERVER_ERROR).statusCode,
+				"Failed to update ride status",
+				true
+			);
+		}
+
+		// 3. If a driver is assigned, update their status
+		if (ride.driver_id) {
+			await driverDataAccess.updateDriverStatus(ride.driver_id, "online");
+		}
+
+		return updatedRide;
+	} catch (error) {
+		console.error("Error in cancelRide service:", error);
+		throw error;
+	}
+};

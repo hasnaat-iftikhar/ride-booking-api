@@ -52,6 +52,8 @@ export const authenticateJWT = (
 	try {
 		const decoded = JwtAuthenticator.verifyToken(token);
 
+		console.log("Decoded token:", decoded);
+
 		req.user = decoded;
 
 		next();

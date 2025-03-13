@@ -21,30 +21,39 @@ class RiderDataAccess {
 		fare: number;
 	}): Promise<RideType> {
 		try {
-			// Find an available driver
-			const availableDriver = await Driver.findOne({
-				where: { status: "online" },
-			});
-
-			if (!availableDriver) {
-				throw new Error("No available drivers found");
-			}
-
-			// Create the ride with status 'requested'
+			// Create the ride with status 'requested' but NO driver assigned yet
 			const ride = await Ride.create({
 				...rideData,
-				driver_id: availableDriver.get("driver_id"),
+				driver_id: null,
 				status: "requested",
 				start_time: new Date(),
 			});
-
-			// Update driver status to busy
-			await availableDriver.update({ status: "busy" });
 
 			return ride.toJSON() as RideType;
 		} catch (error) {
 			console.error("Error creating ride request:", error);
 			throw error;
+		}
+	}
+
+	/**
+	 * Get all available rides
+	 * @returns Array of ride objects
+	 */
+	async getAvailableRides(): Promise<RideType[]> {
+		try {
+		  const rides = await Ride.findAll({
+			where: { 
+			  status: "requested",
+			  driver_id: null
+			},
+			order: [["created_at", "ASC"]], // Oldest first
+		  });
+	  
+		  return rides.map(ride => ride.toJSON() as RideType);
+		} catch (error) {
+		  console.error("Error getting available rides:", error);
+		  throw error;
 		}
 	}
 
@@ -69,6 +78,56 @@ class RiderDataAccess {
 			throw error;
 		}
 	}
-};
+
+	/**
+	 * Get a ride by its ID
+	 * @param rideId Ride ID
+	 * @returns Ride object or null if not found
+	 */
+	async findRideById(rideId: string): Promise<RideType | null> {
+		try {
+			const ride = await Ride.findOne({ where: { ride_id: rideId } });
+			return ride ? (ride.toJSON() as RideType) : null;
+		} catch (error) {
+			console.error("Error getting ride by ID:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Update the status of a ride
+	 * @param rideId Ride ID
+	 * @param status New status
+	 * @returns Updated ride object or null if not found
+	 */
+	async updateRideStatus(
+		rideId: string,
+		status: string,
+		driverId?: string
+	): Promise<RideType | null> {
+		try {
+			const ride = await Ride.findOne({ where: { ride_id: rideId } });
+
+			if (!ride) {
+				return null;
+			}
+
+			const updatedData: Partial<RideType> = {
+				status: status as "requested" | "in_progress" | "completed" | "canceled",
+			}
+			
+			if(driverId) {
+				updatedData.driver_id = driverId;
+			}
+
+			await ride.update(updatedData);
+
+			return ride.toJSON() as RideType;
+		} catch (error) {
+			console.error("Error updating ride status:", error);
+			throw error;
+		}
+	}
+}
 
 export const riderDataAccess = new RiderDataAccess();
