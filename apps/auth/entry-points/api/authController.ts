@@ -8,8 +8,8 @@ import type { User as UserType } from "../../../../models/types"
 import { RequestValidator } from "../../../../libraries/validators/requestValidator"
 import { loginSchema, registerSchema } from "../../../../libraries/validators/schemas/authSchemas"
 
-// Success Response
-import { createSuccessResponse, SuccessType } from "../../../../libraries/responses/successResponse"
+// Response utilities
+import { createSuccessResponse, SuccessType } from "../../../../libraries/responses"
 
 const router = express.Router()
 
@@ -48,4 +48,3 @@ router.post(
 )
 
 export default router
-

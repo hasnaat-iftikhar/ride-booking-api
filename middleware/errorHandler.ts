@@ -1,47 +1,26 @@
-import type { Request, Response, NextFunction } from "express"
-import type { Error as SequelizeError } from "sequelize"
+// middleware/errorHandler.ts
+import type { Request, Response, NextFunction } from 'express';
+import { createErrorResponse, ErrorType } from '../libraries/responses';
 
-// Type defination
-import { AppError } from "../libraries/errors/AppError"
-
-const errorHandler = (err: SequelizeError, req: Request, res: Response, next: NextFunction) => {
-  console.error("Error caught by middleware:", err)
-
-  if (err instanceof AppError) {
-    return res.status(err.httpCode).json({
-      success: false,
-      error: err.description,
-      name: err.name,
-    })
-  }
-
-  // Handle validation errors
-  if (err.name === "ValidationError") {
-    return res.status(400).json({
-      success: false,
-      error: "Validation Error",
-      details: err.message,
-    })
-  }
-
-  // Handle database errors
-  if (err.name === "SequelizeError" || err.name === "SequelizeValidationError") {
-    return res.status(400).json({
-      success: false,
-      error: "Database Error",
-      details: err.message,
-    })
-  }
-
-  // Log unexpected errors and send a generic response
-  console.error(err.stack)
-
-  res.status(500).json({
-    success: false,
-    error: "Internal server error",
-    message: process.env.NODE_ENV === "development" ? err.message : undefined,
-  })
+interface CustomError extends Error {
+  errorType?: ErrorType;
+  statusCode?: number;
+  details?: unknown;
 }
 
-export default errorHandler
+const errorHandler = (err: CustomError, req: Request, res: Response, next: NextFunction) => {
+  console.error('Error caught by middleware:', err);
 
+  // Default to server error if type not specified
+  const errorType = err.errorType || ErrorType.SERVER_ERROR;
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'An unexpected error occurred';
+  const details = err.details || undefined;
+
+  // Send standardized error response
+  res.status(statusCode).json(
+    createErrorResponse(errorType, message, details)
+  );
+};
+
+export default errorHandler;

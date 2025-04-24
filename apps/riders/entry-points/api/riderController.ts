@@ -1,120 +1,92 @@
-import express, {
-	type Request,
-	type Response,
-	type NextFunction,
-} from "express";
+import express, { type Request, type Response, type NextFunction } from "express"
 
 // Service
-import {
-	cancelRide,
-	getUserRideHistory,
-	requestRide,
-} from "../../domain/riderService";
+import { getUserRideHistory, requestRide, cancelRide } from "../../domain/riderService"
 
 // Middleware
-import { authenticateJWT } from "../../../../middleware/authMiddleware";
+import { authenticateJWT } from "../../../../middleware/authMiddleware"
 
-// Success Response
-import {
-	createSuccessResponse,
-	SuccessType,
-} from "../../../../libraries/responses/successResponse";
-import { createErrorResponse } from "../../../../libraries/responses/errorResponse";
+// Validators
+import { RequestValidator } from "../../../../libraries/validators/requestValidator"
+import { requestRideSchema, cancelRideSchema } from "../../../../libraries/validators/schemas/rideSchemas"
 
-const router = express.Router();
+// Response utilities
+import { createSuccessResponse, SuccessType, createErrorResponse, ErrorType } from "../../../../libraries/responses"
 
-router.post(
-	"/request-ride",
-	authenticateJWT,
-	async (req: Request, res: Response, next: NextFunction) => {
-		const { pickup_location, dropoff_location } = req.body;
-
-		const userId = req.user?.userId as string;
-
-		try {
-			console.log("Ride request received:", {
-				userId,
-				pickup_location,
-				dropoff_location,
-			});
-
-			const ride = await requestRide(userId, pickup_location, dropoff_location);
-
-			console.log("Ride created successfully:", ride.ride_id);
-
-			res
-				.status(201)
-				.json(
-					createSuccessResponse(
-						SuccessType.CREATED,
-						ride,
-						"Ride requested successfully"
-					)
-				);
-		} catch (error) {
-			console.error("Ride request error:", error);
-			next(error);
-		}
-	}
-);
-
-router.get(
-	"/rides",
-	authenticateJWT,
-	async (req: Request, res: Response, next: NextFunction) => {
-		const userId = req.user?.userId as string;
-
-		try {
-			const rides = await getUserRideHistory(userId);
-
-			res
-				.status(200)
-				.json(
-					createSuccessResponse(
-						SuccessType.RETRIEVED,
-						rides,
-						"Ride history retrieved successfully"
-					)
-				);
-		} catch (error) {
-			console.error("Get rides error:", error);
-			next(error);
-		}
-	}
-);
+const router = express.Router()
 
 router.post(
-	"/cancel-ride",
-	authenticateJWT,
-	async (req: Request, res: Response, next: NextFunction) => {
-		try {
-			if (!req.user?.userId) {
-				throw new Error("User ID is missing");
-			}
+  "/request-ride",
+  authenticateJWT,
+  RequestValidator.validate(requestRideSchema),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { pickup_location, dropoff_location } = req.body
+    const userId = req.user?.userId
 
-			const { ride_id } = req.body;
+    if (!userId) {
+      res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
+	  return
+    }
 
-			if (!ride_id) {
-				res
-					.status(400)
-					.json(createErrorResponse("Bad Request", "ride_id is required"));
-			}
+    try {
+      console.log("Ride request received:", {
+        userId,
+        pickup_location,
+        dropoff_location,
+      })
 
-			const ride = await cancelRide(req.user.userId, ride_id);
+      const ride = await requestRide(userId, pickup_location, dropoff_location)
 
-			res
-				.status(200)
-				.json(
-					createSuccessResponse(
-						SuccessType.UPDATED,
-						ride,
-						"Ride cancelled successfully"
-					)
-				);
-		} catch (error) {
-			next(error);
-		}
-	}
-);
+      console.log("Ride created successfully:", ride.ride_id)
 
-export default router;
+      res.status(201).json(createSuccessResponse(SuccessType.CREATED, ride, "Ride requested successfully"))
+    } catch (error) {
+      console.error("Ride request error:", error)
+      next(error)
+    }
+  },
+)
+
+router.get("/rides", authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
+  const userId = req.user?.userId
+
+  if (!userId) {
+    res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
+	return
+  }
+
+  try {
+    const rides = await getUserRideHistory(userId)
+
+    res.status(200).json(createSuccessResponse(SuccessType.RETRIEVED, rides, "Ride history retrieved successfully"))
+  } catch (error) {
+    console.error("Get rides error:", error)
+    next(error)
+  }
+})
+
+router.post(
+  "/cancel-ride",
+  authenticateJWT,
+  RequestValidator.validate(cancelRideSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { ride_id } = req.body
+    const userId = req.user?.userId
+
+    if (!userId) {
+      res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
+	  return
+    }
+
+    try {
+      const ride = await cancelRide(userId, ride_id)
+
+      res.status(200).json(createSuccessResponse(SuccessType.UPDATED, ride, "Ride cancelled successfully"))
+    } catch (error) {
+      console.error("Cancel ride error:", error)
+      next(error)
+    }
+  },
+)
+
+export default router
