@@ -41,6 +41,8 @@ class AuthDataAccess {
 				password: hashedPassword,
 			});
 
+			console.log("user: ", user);
+
 			return user.toJSON() as UserType;
 		} catch (error) {
 			console.error("Error creating user:", error);

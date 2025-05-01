@@ -24,6 +24,11 @@ const User = sequelize.define('User', {
         type: DataTypes.STRING(255),
         allowNull: false
     },
+    role: {
+        type: DataTypes.ENUM('rider', 'admin'),
+        allowNull: false,
+        defaultValue: 'rider'
+    },
     created_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW
@@ -34,7 +39,10 @@ const User = sequelize.define('User', {
     }
 }, {
     tableName: 'users',
-    timestamps: false
+    timestamps: false,
+    indexes: [
+        { fields: ['role'] }
+    ]
 });
 
 export default User;

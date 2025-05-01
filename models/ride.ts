@@ -15,7 +15,7 @@ const Ride = sequelize.define(
 		},
 		driver_id: {
 			type: DataTypes.UUID,
-			allowNull: false,
+			allowNull: true,
 		},
 		user_id: {
 			type: DataTypes.UUID,
@@ -57,6 +57,11 @@ const Ride = sequelize.define(
 	{
 		tableName: "rides",
 		timestamps: false,
+		indexes: [
+			{ fields: ['driver_id'] },
+			{ fields: ['user_id'] },
+			{ fields: ['status'] },
+		]
 	}
 );
 

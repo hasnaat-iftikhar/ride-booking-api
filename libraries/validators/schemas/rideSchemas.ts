@@ -12,3 +12,4 @@ export const cancelRideSchema = Joi.object({
 export const acceptRideSchema = Joi.object({
 	ride_id: Joi.string().required().uuid(),
 });
+

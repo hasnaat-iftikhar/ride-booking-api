@@ -6,6 +6,7 @@ import type { Driver as DriverType } from "../../../models/types";
 
 // Validation
 import * as argon2 from "argon2";
+import type { Transaction } from 'sequelize';
 
 export class DriverDataAccess {
 	async findDriverByEmail(email: string): Promise<DriverType | null> {
@@ -133,16 +134,20 @@ export class DriverDataAccess {
 
 	async updateDriverStatus(
 		driverId: string,
-		status: "online" | "offline" | "busy"
+		status: "online" | "offline" | "busy",
+		options?: { transaction?: Transaction }
 	): Promise<DriverType | null> {
 		try {
-			const driver = await Driver.findOne({ where: { driver_id: driverId } });
+			const driver = await Driver.findOne({ 
+				where: { driver_id: driverId },
+				transaction: options?.transaction
+			});
 
 			if (!driver) {
 				return null;
 			}
 
-			await driver.update({ status });
+			await driver.update({ status }, { transaction: options?.transaction });
 
 			return driver.toJSON() as DriverType;
 		} catch (error) {

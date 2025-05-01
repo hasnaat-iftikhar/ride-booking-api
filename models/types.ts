@@ -1,9 +1,13 @@
+export type UserRole = 'rider' | 'admin';
+export type AuthRole = UserRole | 'driver';
+
 export interface User {
     user_id: string;
     name: string;
     email: string;
     phone_number: string;
     password: string;
+    role: UserRole;
     created_at: Date;
     updated_at: Date;
 };
@@ -22,10 +26,10 @@ export interface Driver {
 
 export interface Ride {
     ride_id: string;
-    driver_id: string;
+    driver_id: string | null;
     user_id: string;
     start_time: Date;
-    end_time: Date;
+    end_time: Date | null;
     pickup_location: string;
     dropoff_location: string;
     fare: number;

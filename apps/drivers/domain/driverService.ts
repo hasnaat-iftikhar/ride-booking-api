@@ -10,13 +10,16 @@ import { throwError, ErrorType } from "../../../libraries/responses"
 import { JwtAuthenticator } from "../../../libraries/authenticator/jwtAuthenticator"
 import { riderDataAccess } from "../../riders/data-access/riderDataAccess"
 
+// Sequelize instance for transactions
+import sequelize from "../../../config/database"; 
+
 export const registerDriver = async (
   name: string,
   email: string,
   phone_number: string,
   license_number: string,
   password: string,
-): Promise<DriverType> => {
+): Promise<Partial<DriverType>> => {
   try {
     const existingDriver = await driverDataAccess.findDriverByEmail(email)
 
@@ -35,7 +38,7 @@ export const registerDriver = async (
     // Remove password from returned driver object
     const { password: _, ...driverWithoutPassword } = newDriver
 
-    return driverWithoutPassword as DriverType
+    return driverWithoutPassword
   } catch (error) {
     console.error("Error in registerDriver service:", error)
     throw error
@@ -56,6 +59,7 @@ export const loginDriver = async (
     const token = JwtAuthenticator.generateToken({
       userId: driver.driver_id,
       email: driver.email,
+      role: "driver",
     })
 
     // Remove password from returned driver object
@@ -71,7 +75,7 @@ export const loginDriver = async (
   }
 }
 
-export const getDriverById = async (driverId: string): Promise<DriverType> => {
+export const getDriverById = async (driverId: string): Promise<Partial<DriverType>> => {
   try {
     const driver = await driverDataAccess.findDriverById(driverId)
 
@@ -81,14 +85,14 @@ export const getDriverById = async (driverId: string): Promise<DriverType> => {
 
     // Remove password from returned driver object
     const { password: _, ...driverWithoutPassword } = driver
-    return driverWithoutPassword as DriverType
+    return driverWithoutPassword
   } catch (error) {
     console.error("Error in getDriverById service:", error)
     throw error
   }
 }
 
-export const updateDriverProfile = async (driverId: string, updateData: Partial<DriverType>): Promise<DriverType> => {
+export const updateDriverProfile = async (driverId: string, updateData: Partial<DriverType>): Promise<Partial<DriverType>> => {
   try {
     const updatedDriver = await driverDataAccess.updateDriver(driverId, updateData)
 
@@ -98,7 +102,7 @@ export const updateDriverProfile = async (driverId: string, updateData: Partial<
 
     // Remove password from returned driver object
     const { password: _, ...driverWithoutPassword } = updatedDriver
-    return driverWithoutPassword as DriverType
+    return driverWithoutPassword
   } catch (error) {
     console.error("Error in updateDriverProfile service:", error)
     throw error
@@ -120,14 +124,14 @@ export const deleteDriverAccount = async (driverId: string): Promise<{ success: 
   }
 }
 
-export const getAllDrivers = async (filters: { status?: string } = {}): Promise<DriverType[]> => {
+export const getAllDrivers = async (filters: { status?: string } = {}): Promise<Partial<DriverType>[]> => {
   try {
     const drivers = await driverDataAccess.getAllDrivers(filters)
 
     // Remove passwords from returned driver objects
     return drivers.map((driver) => {
       const { password: _, ...driverWithoutPassword } = driver
-      return driverWithoutPassword as DriverType
+      return driverWithoutPassword
     })
   } catch (error) {
     console.error("Error in getAllDrivers service:", error)
@@ -138,7 +142,7 @@ export const getAllDrivers = async (filters: { status?: string } = {}): Promise<
 export const updateDriverStatus = async (
   driverId: string,
   status: "online" | "offline" | "busy",
-): Promise<DriverType> => {
+): Promise<Partial<DriverType>> => {
   try {
     const updatedDriver = await driverDataAccess.updateDriverStatus(driverId, status)
 
@@ -148,7 +152,7 @@ export const updateDriverStatus = async (
 
     // Remove password from returned driver object
     const { password: _, ...driverWithoutPassword } = updatedDriver
-    return driverWithoutPassword as DriverType
+    return driverWithoutPassword
   } catch (error) {
     console.error("Error in updateDriverStatus service:", error)
     throw error
@@ -156,9 +160,10 @@ export const updateDriverStatus = async (
 }
 
 export const acceptRide = async (driverId: string, rideId: string): Promise<RideType> => {
-  try {
-    // 1. Check if driver exists and is available
-    const driver = await driverDataAccess.findDriverById(driverId)
+  // Wrap the entire operation in a transaction
+  const result = await sequelize.transaction(async (t) => {
+    // 1. Check if driver exists and is available (read operations don't strictly need transaction, but keeping it inside is fine)
+    const driver = await driverDataAccess.findDriverById(driverId /* { transaction: t } */) // findById doesn't have transaction option here
 
     if (!driver) {
       throwError(ErrorType.NOT_FOUND, "Driver not found")
@@ -169,7 +174,7 @@ export const acceptRide = async (driverId: string, rideId: string): Promise<Ride
     }
 
     // 2. Check if ride exists and is available
-    const ride = await riderDataAccess.findRideById(rideId)
+    const ride = await riderDataAccess.findRideById(rideId /* { transaction: t } */) // findRideById doesn't have transaction option here
 
     if (!ride) {
       throwError(ErrorType.NOT_FOUND, "Ride not found")
@@ -179,23 +184,37 @@ export const acceptRide = async (driverId: string, rideId: string): Promise<Ride
       throwError(ErrorType.BAD_REQUEST, "Ride is not in a requestable state")
     }
 
-    // 3. Update ride status AND assign the driver
+    // 3. Update ride status AND assign the driver (WITHIN TRANSACTION)
     const updatedRide = await riderDataAccess.updateRideStatus(
       rideId,
       "in_progress",
       driverId, // Pass the driver ID to assign them
+      { transaction: t } // Pass transaction object
     )
 
     if (!updatedRide) {
-      throwError(ErrorType.SERVER_ERROR, "Failed to update ride status")
+      // If ride update failed within transaction, throw error (will cause rollback)
+      throwError(ErrorType.SERVER_ERROR, "Failed to update ride status during transaction")
     }
 
-    // 4. Update driver status to busy
-    await driverDataAccess.updateDriverStatus(driverId, "busy")
+    // 4. Update driver status to busy (WITHIN TRANSACTION)
+    const updatedDriverStatus = await driverDataAccess.updateDriverStatus(
+        driverId, 
+        "busy", 
+        { transaction: t } // Pass transaction object
+    )
 
+    if (!updatedDriverStatus) {
+        // If driver status update failed, throw error (will cause rollback)
+        throwError(ErrorType.SERVER_ERROR, "Failed to update driver status during transaction")
+    }
+
+    // If both updates succeed, the transaction will commit, return the updated ride
     return updatedRide
-  } catch (error) {
-    console.error("Error in acceptRide service:", error)
-    throw error
-  }
+  });
+
+  // The transaction has committed or rolled back, return the result
+  return result;
+  // Note: Error handling for transaction failures themselves might be needed depending on sequelize setup
+  // The try/catch block around the original call in the controller will catch errors thrown from within the transaction
 }

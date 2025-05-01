@@ -1,4 +1,5 @@
-import express, { type Request, type Response, type NextFunction } from "express"
+import express from "express"
+import type { Request, Response, NextFunction } from "express"
 
 // Service
 import {
@@ -13,7 +14,7 @@ import {
 } from "../../domain/driverService"
 
 // Middleware
-import { authenticateJWT } from "../../../../middleware/authMiddleware"
+import { authenticateJWT, authorizeRoles } from "../../../../middleware/authMiddleware"
 
 // Validators
 import { RequestValidator } from "../../../../libraries/validators/requestValidator"
@@ -28,7 +29,7 @@ import {
 } from "../../../../libraries/validators/schemas/rideSchemas"
 
 // Response utilities
-import { createSuccessResponse, SuccessType, createErrorResponse, ErrorType } from "../../../../libraries/responses"
+import { createSuccessResponse, SuccessType, ErrorType, throwError } from "../../../../libraries/responses"
 
 const router = express.Router()
 
@@ -45,7 +46,11 @@ router.post(
 
       res.status(201).json(createSuccessResponse(SuccessType.CREATED, driver, "Driver registered successfully"))
     } catch (error) {
-      next(error)
+      if (error instanceof Error) {
+        next(error);
+      } else {
+        next(new Error("An unknown error occurred during driver registration."));
+      }
     }
   },
 )
@@ -61,24 +66,33 @@ router.post(
 
       res.status(200).json(createSuccessResponse(SuccessType.AUTHENTICATED, result, "Driver logged in successfully"))
     } catch (error) {
-      next(error)
+      if (error instanceof Error) {
+        next(error);
+      } else {
+        next(new Error("An unknown error occurred during driver login."));
+      }
     }
   },
 )
 // Protected routes
-router.get("/profile", authenticateJWT, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get("/profile", authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user?.userId) {
-      res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
-      return
+      console.error("User ID missing from request after authenticateJWT middleware.");
+      return throwError(ErrorType.SERVER_ERROR, "User identifier missing after authentication.");
     }
+    const userId = req.user.userId;
 
-    console.log("Getting driver profile for ID:", req.user.userId)
-    const driver = await getDriverById(req.user.userId)
+    console.log("Getting driver profile for ID:", userId)
+    const driver = await getDriverById(userId)
 
     res.status(200).json(createSuccessResponse(SuccessType.RETRIEVED, driver, "Driver profile retrieved successfully"))
   } catch (error) {
-    next(error)
+    if (error instanceof Error) {
+      next(error);
+    } else {
+      next(new Error("An unknown error occurred fetching driver profile."));
+    }
   }
 })
 
@@ -89,16 +103,22 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.userId) {
-        res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"));
-		return
+        console.error("User ID missing from request after authenticateJWT middleware.");
+        return throwError(ErrorType.SERVER_ERROR, "User identifier missing after authentication.");
       }
+      const userId = req.user.userId;
+      const updateData = req.body;
 
-      console.log("Updating driver profile for ID:", req.user.userId, "with data:", req.body)
-      const driver = await updateDriverProfile(req.user.userId, req.body)
+      console.log("Updating driver profile for ID:", userId, "with data:", updateData)
+      const driver = await updateDriverProfile(userId, updateData)
 
       res.status(200).json(createSuccessResponse(SuccessType.UPDATED, driver, "Driver profile updated successfully"))
     } catch (error) {
-      next(error)
+       if (error instanceof Error) {
+         next(error);
+       } else {
+         next(new Error("An unknown error occurred updating driver profile."));
+       }
     }
   },
 )
@@ -106,15 +126,20 @@ router.put(
 router.delete("/account", authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user?.userId) {
-      res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
-	  return
+      console.error("User ID missing from request after authenticateJWT middleware.");
+      return throwError(ErrorType.SERVER_ERROR, "User identifier missing after authentication.");
     }
+    const userId = req.user.userId;
 
-    const result = await deleteDriverAccount(req.user.userId)
+    const result = await deleteDriverAccount(userId)
 
     res.status(200).json(createSuccessResponse(SuccessType.DELETED, result, "Driver account deleted successfully"))
   } catch (error) {
-    next(error)
+    if (error instanceof Error) {
+      next(error);
+    } else {
+      next(new Error("An unknown error occurred deleting driver account."));
+    }
   }
 })
 
@@ -123,21 +148,25 @@ router.put(
   authenticateJWT,
   RequestValidator.validate(updateDriverStatusSchema),
   async (req: Request, res: Response, next: NextFunction) => {
-    const { status } = req.body
-
     try {
       if (!req.user?.userId) {
-        res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
-		return
+        console.error("User ID missing from request after authenticateJWT middleware.");
+        return throwError(ErrorType.SERVER_ERROR, "User identifier missing after authentication.");
       }
+      const userId = req.user.userId;
+      const { status } = req.body;
 
-      const driver = await updateDriverStatus(req.user.userId, status)
+      const driver = await updateDriverStatus(userId, status)
 
       res
         .status(200)
         .json(createSuccessResponse(SuccessType.UPDATED, driver, `Driver status updated to ${status} successfully`))
     } catch (error) {
-      next(error)
+      if (error instanceof Error) {
+        next(error);
+      } else {
+        next(new Error("An unknown error occurred updating driver status."));
+      }
     }
   },
 )
@@ -150,30 +179,44 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.userId) {
-        res.status(401).json(createErrorResponse(ErrorType.UNAUTHORIZED, "User ID is missing"))
-		return
+        console.error("User ID missing from request after authenticateJWT middleware.");
+        return throwError(ErrorType.SERVER_ERROR, "User identifier missing after authentication.");
       }
+      const userId = req.user.userId;
+      const { ride_id } = req.body;
 
-      const { ride_id } = req.body
-      const ride = await acceptRide(req.user.userId, ride_id)
+      const ride = await acceptRide(userId, ride_id)
 
       res.status(200).json(createSuccessResponse(SuccessType.UPDATED, ride, "Ride accepted successfully"))
     } catch (error) {
-      next(error)
+      if (error instanceof Error) {
+        next(error);
+      } else {
+        next(new Error("An unknown error occurred accepting ride."));
+      }
     }
   },
 )
 
-// Admin routes (would typically have additional authorization)
-router.get("/all", authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const filters = req.query.status ? { status: req.query.status as string } : {}
-    const drivers = await getAllDrivers(filters)
+// Admin routes (ADD AUTHORIZATION MIDDLEWARE HERE)
+router.get(
+    "/all", 
+    authenticateJWT, 
+    authorizeRoles('admin'),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const filters = req.query.status ? { status: req.query.status as string } : {}
+            const drivers = await getAllDrivers(filters)
 
-    res.status(200).json(createSuccessResponse(SuccessType.RETRIEVED, drivers, "All drivers retrieved successfully"))
-  } catch (error) {
-    next(error)
-  }
-})
+            res.status(200).json(createSuccessResponse(SuccessType.RETRIEVED, drivers, "All drivers retrieved successfully"))
+        } catch (error) {
+            if (error instanceof Error) {
+                next(error);
+            } else {
+                next(new Error("An unknown error occurred fetching all drivers."));
+            }
+        }
+    }
+)
 
 export default router

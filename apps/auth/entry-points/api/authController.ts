@@ -20,7 +20,7 @@ router.post(
     const { name, email, phone_number, password } = req.body
 
     try {
-      const user: UserType = await registerUser(name, email, phone_number, password)
+      const user: Partial<UserType> = await registerUser(name, email, phone_number, password)
 
       res.status(201).json(createSuccessResponse(SuccessType.CREATED, user, "User registered successfully"))
     } catch (error) {

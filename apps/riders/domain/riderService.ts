@@ -1,7 +1,7 @@
 import { riderDataAccess } from "../data-access/riderDataAccess";
 import { driverDataAccess } from "../../drivers/data-access/driverDataAccess";
 
-// Error library
+// Error handling
 import { throwError, ErrorType } from "../../../libraries/responses";
 
 // Type definations
@@ -95,7 +95,7 @@ export const cancelRide = async (
 };
 
 // Helper function to calculate fare (simplified)
-function calculateFare(pickup: string, dropoff: string): number {
+function calculateFare(_pickup: string, _dropoff: string): number {
 	// Todo: You have to use a mapping service to calculate distance
 	// and then apply pricing rules
 	const baseFare = 5.0;

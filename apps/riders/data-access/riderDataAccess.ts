@@ -1,3 +1,4 @@
+import type { Transaction } from 'sequelize'; // Import Transaction type
 // Models
 import Driver from "../../../models/driver"
 import Ride from "../../../models/ride"
@@ -78,29 +79,55 @@ class RiderDataAccess {
    * @param rideId Ride ID
    * @param status New status
    * @param driverId Optional driver ID to assign
+   * @param options Optional Sequelize options (including transaction)
    * @returns Updated ride object or null if not found
    */
-  async updateRideStatus(rideId: string, status: string, driverId?: string): Promise<RideType | null> {
+  async updateRideStatus(
+    rideId: string, 
+    status: string, 
+    driverId?: string, 
+    options?: { transaction?: Transaction }
+  ): Promise<RideType | null> {
     try {
-      const ride = await Ride.findOne({ where: { ride_id: rideId } })
+      // Use Ride.update directly for efficiency if possible, pass transaction
+      const [affectedRows] = await Ride.update(
+        driverId ? { status, driver_id: driverId } : { status }, 
+        {
+          where: { ride_id: rideId },
+          transaction: options?.transaction, // Pass transaction from options
+          returning: true // Ensure returning is supported and enabled if needed, might need model adjustment too
+        }
+      );
+
+      // If using Ride.update with returning: true, result processing is different
+      // For simplicity, let's stick to findOne + update for now, but pass transaction
+      
+      const ride = await Ride.findOne({ 
+          where: { ride_id: rideId }, 
+          transaction: options?.transaction // Use transaction for findOne
+      });
 
       if (!ride) {
         return null
       }
 
-      const updateData: { status: string; driver_id?: string } = { status }
+      const updateData: { status: string; driver_id?: string | null } = { status }; // Ensure driver_id can be null/undefined type-wise
 
-      // If driverId is provided, assign the driver
-      if (driverId) {
-        updateData.driver_id = driverId
+      // If driverId is explicitly provided (even if undefined), assign it
+      // If driverId is undefined, update might set it to null if column allows
+      if (driverId !== undefined) { 
+        updateData.driver_id = driverId || null; // Assign driverId or null explicitly
       }
 
-      await ride.update(updateData)
+      // Pass transaction to update
+      await ride.update(updateData, { transaction: options?.transaction });
 
-      return ride.toJSON() as RideType
+      // Return the updated ride instance data
+      return ride.toJSON() as RideType;
+
     } catch (error) {
-      console.error("Error updating ride status:", error)
-      throw error
+      console.error("Error updating ride status:", error);
+      throw error;
     }
   }
 
