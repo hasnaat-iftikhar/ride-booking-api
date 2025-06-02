@@ -12,6 +12,7 @@ import {
   updateDriverStatus,
   acceptRide,
 } from "../../domain/driverService"
+import type { Driver as DriverType } from "../../../../models/types"
 
 // Middleware
 import { authenticateJWT, authorizeRoles } from "../../../../middleware/authMiddleware"
@@ -205,8 +206,9 @@ router.get(
     authorizeRoles('admin'),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const filters = req.query.status ? { status: req.query.status as string } : {}
-            const drivers = await getAllDrivers(filters)
+            const statusFromQuery = req.query.status as (DriverType['status'] | undefined);
+            const filters = statusFromQuery ? { status: statusFromQuery } : {};
+            const drivers = await getAllDrivers(filters);
 
             res.status(200).json(createSuccessResponse(SuccessType.RETRIEVED, drivers, "All drivers retrieved successfully"))
         } catch (error) {

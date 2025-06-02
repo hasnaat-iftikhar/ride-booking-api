@@ -1,10 +1,12 @@
 import argon2 from "argon2";
 
-// Model
-import User from "../../../models/user";
+// Models - Updated import
+import { User } from "../../../models"; // Import from centralized models/index.ts
 
-// Type defination
-import type { User as UserType } from "../../../models/types";
+// Type definition (UserType can now potentially come from User model itself if attributes are well-defined)
+// Or continue using the one from models/types if preferred for separation
+import type { UserAttributes as UserType } from "../../../models/types"; // Using UserAttributes for the return type of DB ops
+import type { UserCreationAttributes } from "../../../models/types";
 
 class AuthDataAccess {
 	/**
@@ -13,41 +15,30 @@ class AuthDataAccess {
 	 * @returns User object or null if not found
 	 */
 	async findUserByEmail(email: string): Promise<UserType | null> {
-		try {
-			const user = await User.findOne({ where: { email } });
-			return user ? (user.toJSON() as UserType) : null;
-		} catch (error) {
-			console.error("Error finding user by email:", error);
-			throw error;
-		}
+		const user = await User.findOne({ where: { email } });
+		return user ? (user.toJSON() as UserType) : null;
 	}
 
 	/**
 	 * Create a new user in the database
-	 * @param userData User data to create
+	 * @param userData User data to create. Matches UserCreationAttributes shape.
 	 * @returns Created user object
 	 */
-	async createUser(userData: {
-		name: string;
-		email: string;
-		phone_number: string;
-		password: string;
-	}): Promise<UserType> {
-		try {
-			const hashedPassword = await argon2.hash(userData.password);
+	async createUser(userData: Omit<UserCreationAttributes, 'role' | 'user_id' | 'password'> & { password_plaintext: string }): Promise<UserType> {
+		const hashedPassword = await argon2.hash(userData.password_plaintext);
 
-			const user = await User.create({
-				...userData,
-				password: hashedPassword,
-			});
+		// Construct the data for User.create, matching UserCreationAttributes
+		const createData: UserCreationAttributes = {
+			name: userData.name,
+			email: userData.email,
+			phone_number: userData.phone_number,
+			password: hashedPassword,
+			role: 'rider', // Default role for this creation method
+		};
 
-			console.log("user: ", user);
+		const user = await User.create(createData);
 
-			return user.toJSON() as UserType;
-		} catch (error) {
-			console.error("Error creating user:", error);
-			throw error;
-		}
+		return user.toJSON() as UserType;
 	}
 
 	/**
@@ -58,30 +49,25 @@ class AuthDataAccess {
 	 */
 	async verifyUserCredentials(
 		email: string,
-		password: string
+		password_plaintext: string
 	): Promise<UserType | null> {
-		try {
-			const user = await User.findOne({ where: { email } });
+		const userInstance = await User.findOne({ where: { email } });
 
-			if (!user) {
-				return null;
-			}
-
-			// Verify the password
-			const passwordValid = await argon2.verify(
-				user.get("password") as string,
-				password
-			);
-
-			if (!passwordValid) {
-				return null;
-			}
-
-			return user.toJSON() as UserType;
-		} catch (error) {
-			console.error("Error verifying user credentials:", error);
-			throw error;
+		if (!userInstance) {
+			return null;
 		}
+
+		// Verify the password
+		const passwordValid = await argon2.verify(
+			userInstance.password, // Direct access to property from class model
+			password_plaintext
+		);
+
+		if (!passwordValid) {
+			return null;
+		}
+
+		return userInstance.toJSON() as UserType;
 	}
 }
 

@@ -1,7 +1,8 @@
 import { driverDataAccess } from "../data-access/driverDataAccess"
 
 // Type Definations
-import type { Driver as DriverType, Ride as RideType } from "../../../models/types"
+import type { Driver as DriverType, Ride as RideType, RideStatus, UserRole } from "../../../models/types"
+import type { Transaction as SequelizeTransactionType } from 'sequelize';
 
 // Error handling
 import { throwError, ErrorType } from "../../../libraries/responses"
@@ -11,153 +12,114 @@ import { JwtAuthenticator } from "../../../libraries/authenticator/jwtAuthentica
 import { riderDataAccess } from "../../riders/data-access/riderDataAccess"
 
 // Sequelize instance for transactions
-import sequelize from "../../../config/database"; 
+import { sequelize } from "../../../models";
 
 export const registerDriver = async (
   name: string,
   email: string,
   phone_number: string,
   license_number: string,
-  password: string,
+  password_plaintext: string,
 ): Promise<Partial<DriverType>> => {
-  try {
-    const existingDriver = await driverDataAccess.findDriverByEmail(email)
+  const existingDriver = await driverDataAccess.findDriverByEmail(email)
 
-    if (existingDriver) {
-      throwError(ErrorType.CONFLICT, "Driver with this email already exists")
-    }
-
-    const newDriver = await driverDataAccess.createDriver({
-      name,
-      email,
-      phone_number,
-      license_number,
-      password,
-    })
-
-    // Remove password from returned driver object
-    const { password: _, ...driverWithoutPassword } = newDriver
-
-    return driverWithoutPassword
-  } catch (error) {
-    console.error("Error in registerDriver service:", error)
-    throw error
+  if (existingDriver) {
+    throwError(ErrorType.CONFLICT, "Driver with this email already exists")
   }
+
+  const newDriver = await driverDataAccess.createDriver({
+    name,
+    email,
+    phone_number,
+    license_number,
+    password_plaintext,
+  })
+
+  const { password: _, ...driverWithoutPassword } = newDriver
+  return driverWithoutPassword
 }
 
 export const loginDriver = async (
   email: string,
-  password: string,
+  password_plaintext: string,
 ): Promise<{ driver: Partial<DriverType>; token: string }> => {
-  try {
-    const driver = await driverDataAccess.verifyDriverCredentials(email, password)
+  const driver = await driverDataAccess.verifyDriverCredentials(email, password_plaintext)
 
-    if (!driver) {
-      throwError(ErrorType.UNAUTHORIZED, "Invalid email or password")
-    }
+  if (!driver) {
+    throwError(ErrorType.UNAUTHORIZED, "Invalid email or password")
+  }
 
-    const token = JwtAuthenticator.generateToken({
-      userId: driver.driver_id,
-      email: driver.email,
-      role: "driver",
-    })
+  const token = JwtAuthenticator.generateToken({
+    userId: driver.driver_id,
+    email: driver.email,
+    role: "driver" as UserRole,
+  })
 
-    // Remove password from returned driver object
-    const { password: _, ...driverWithoutPassword } = driver
+  // Remove password from returned driver object
+  const { password: _, ...driverWithoutPassword } = driver
 
-    return {
-      driver: driverWithoutPassword,
-      token,
-    }
-  } catch (error) {
-    console.error("Error in loginDriver service:", error)
-    throw error
+  return {
+    driver: driverWithoutPassword,
+    token,
   }
 }
 
-export const getDriverById = async (driverId: string): Promise<Partial<DriverType>> => {
-  try {
-    const driver = await driverDataAccess.findDriverById(driverId)
-
-    if (!driver) {
-      throwError(ErrorType.NOT_FOUND, "Driver not found")
-    }
-
-    // Remove password from returned driver object
-    const { password: _, ...driverWithoutPassword } = driver
-    return driverWithoutPassword
-  } catch (error) {
-    console.error("Error in getDriverById service:", error)
-    throw error
+export const getDriverById = async (
+  driverId: string
+): Promise<Omit<DriverType, 'password'>> => {
+  const driver = await driverDataAccess.findDriverById(driverId);
+  if (!driver) {
+    throwError(ErrorType.NOT_FOUND, 'Driver not found');
   }
-}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password, ...driverWithoutPassword } = driver;
+  return driverWithoutPassword;
+};
 
-export const updateDriverProfile = async (driverId: string, updateData: Partial<DriverType>): Promise<Partial<DriverType>> => {
-  try {
-    const updatedDriver = await driverDataAccess.updateDriver(driverId, updateData)
-
-    if (!updatedDriver) {
-      throwError(ErrorType.NOT_FOUND, "Driver not found")
-    }
-
-    // Remove password from returned driver object
-    const { password: _, ...driverWithoutPassword } = updatedDriver
-    return driverWithoutPassword
-  } catch (error) {
-    console.error("Error in updateDriverProfile service:", error)
-    throw error
+export const updateDriverProfile = async (
+  driverId: string,
+  updateData: Partial<DriverType>
+): Promise<Omit<DriverType, 'password'>> => {
+  const updatedDriver = await driverDataAccess.updateDriver(driverId, updateData);
+  if (!updatedDriver) {
+    throwError(ErrorType.NOT_FOUND, 'Driver not found');
   }
-}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password, ...driverWithoutPassword } = updatedDriver;
+  return driverWithoutPassword;
+};
 
-export const deleteDriverAccount = async (driverId: string): Promise<{ success: boolean }> => {
-  try {
-    const result = await driverDataAccess.deleteDriver(driverId)
-
-    if (!result) {
-      throwError(ErrorType.NOT_FOUND, "Driver not found")
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error in deleteDriverAccount service:", error)
-    throw error
+export const deleteDriverAccount = async (
+  driverId: string
+): Promise<{ success: boolean }> => {
+  const deleted = await driverDataAccess.deleteDriver(driverId);
+  if (!deleted) {
+    throwError(ErrorType.NOT_FOUND, 'Driver not found');
   }
-}
+  return { success: true };
+};
 
-export const getAllDrivers = async (filters: { status?: string } = {}): Promise<Partial<DriverType>[]> => {
-  try {
-    const drivers = await driverDataAccess.getAllDrivers(filters)
-
-    // Remove passwords from returned driver objects
-    return drivers.map((driver) => {
-      const { password: _, ...driverWithoutPassword } = driver
-      return driverWithoutPassword
-    })
-  } catch (error) {
-    console.error("Error in getAllDrivers service:", error)
-    throw error
-  }
-}
+export const getAllDrivers = async (
+  filters?: { status?: DriverType['status'] }
+): Promise<Omit<DriverType, 'password'>[]> => {
+  const drivers = await driverDataAccess.getAllDrivers(filters);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return drivers.map(({ password, ...driver }) => driver);
+};
 
 export const updateDriverStatus = async (
   driverId: string,
-  status: "online" | "offline" | "busy",
-): Promise<Partial<DriverType>> => {
-  try {
-    const updatedDriver = await driverDataAccess.updateDriverStatus(driverId, status)
-
-    if (!updatedDriver) {
-      throwError(ErrorType.NOT_FOUND, "Driver not found")
-    }
-
-    // Remove password from returned driver object
-    const { password: _, ...driverWithoutPassword } = updatedDriver
-    return driverWithoutPassword
-  } catch (error) {
-    console.error("Error in updateDriverStatus service:", error)
-    throw error
+  status: DriverType['status'],
+  options?: { transaction?: SequelizeTransactionType }
+): Promise<Omit<DriverType, 'password'>> => {
+  const updatedDriver = await driverDataAccess.updateDriverStatus(driverId, status, options);
+  if (!updatedDriver) {
+    throwError(ErrorType.NOT_FOUND, 'Driver not found');
   }
-}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password, ...driverWithoutPassword } = updatedDriver;
+  return driverWithoutPassword;
+};
 
 export const acceptRide = async (driverId: string, rideId: string): Promise<RideType> => {
   // Wrap the entire operation in a transaction

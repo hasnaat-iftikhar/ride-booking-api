@@ -25,8 +25,6 @@ export const requestRide = async (
 
 		return ride;
 	} catch (error) {
-		console.error("Error in requestRide service: ", error);
-
 		if (error instanceof Error && error.message === "No available drivers found") {
 			throwError(
 				ErrorType.BAD_REQUEST,
@@ -41,57 +39,47 @@ export const requestRide = async (
 export const getUserRideHistory = async (
 	userId: string
 ): Promise<RideType[]> => {
-	try {
-		return await riderDataAccess.getUserRides(userId);
-	} catch (error) {
-		console.error("Error in getUserRideHistory service:", error);
-		throw error;
-	}
+	return await riderDataAccess.getUserRides(userId);
 };
 
 export const cancelRide = async (
 	userId: string,
 	rideId: string
 ): Promise<RideType> => {
-	try {
-		// 1. Get the ride and verify it belongs to the user
-		const ride = await riderDataAccess.findRideById(rideId);
+	// 1. Get the ride and verify it belongs to the user
+	const ride = await riderDataAccess.findRideById(rideId);
 
-		if (!ride) {
-			throwError(ErrorType.NOT_FOUND, "Ride not found");
-		}
-
-		if (ride.user_id !== userId) {
-			throwError(ErrorType.FORBIDDEN, "You can only cancel your own rides");
-		}
-
-		if (ride.status !== "requested" && ride.status !== "in_progress") {
-			throwError(
-				ErrorType.BAD_REQUEST,
-				"Ride cannot be canceled in its current state"
-			);
-		}
-
-		// 2. Update ride status
-		const updatedRide = await riderDataAccess.updateRideStatus(
-			rideId,
-			"canceled"
-		);
-
-		if (!updatedRide) {
-			throwError(ErrorType.SERVER_ERROR, "Failed to update ride status");
-		}
-
-		// 3. If a driver is assigned, update their status
-		if (ride.driver_id) {
-			await driverDataAccess.updateDriverStatus(ride.driver_id, "online");
-		}
-
-		return updatedRide;
-	} catch (error) {
-		console.error("Error in cancelRide service:", error);
-		throw error;
+	if (!ride) {
+		throwError(ErrorType.NOT_FOUND, "Ride not found");
 	}
+
+	if (ride.user_id !== userId) {
+		throwError(ErrorType.FORBIDDEN, "You can only cancel your own rides");
+	}
+
+	if (ride.status !== "requested" && ride.status !== "in_progress") {
+		throwError(
+			ErrorType.BAD_REQUEST,
+			"Ride cannot be canceled in its current state"
+		);
+	}
+
+	// 2. Update ride status
+	const updatedRide = await riderDataAccess.updateRideStatus(
+		rideId,
+		"canceled"
+	);
+
+	if (!updatedRide) {
+		throwError(ErrorType.SERVER_ERROR, "Failed to update ride status");
+	}
+
+	// 3. If a driver is assigned, update their status
+	if (ride.driver_id) {
+		await driverDataAccess.updateDriverStatus(ride.driver_id, "online");
+	}
+
+	return updatedRide;
 };
 
 // Helper function to calculate fare (simplified)
@@ -106,3 +94,8 @@ function calculateFare(_pickup: string, _dropoff: string): number {
 
 	return Number((baseFare + perKmRate * estimatedDistance).toFixed(2));
 }
+
+// Export for testing purposes
+export const testingExports = {
+	calculateFare
+};

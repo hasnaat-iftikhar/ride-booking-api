@@ -1,12 +1,17 @@
 // Models
-import Driver from "../../../models/driver";
+import { Driver } from "../../../models";
 
 // Type Definations
-import type { Driver as DriverType } from "../../../models/types";
+import type { DriverAttributes as DriverType, DriverCreationAttributes } from "../../../models/types";
 
 // Validation
 import * as argon2 from "argon2";
 import type { Transaction } from 'sequelize';
+
+// Input type for creating a driver, expecting plaintext password
+interface CreateDriverServiceInput extends Pick<DriverType, 'name' | 'email' | 'phone_number' | 'license_number'> {
+	password_plaintext: string;
+}
 
 export class DriverDataAccess {
 	async findDriverByEmail(email: string): Promise<DriverType | null> {
@@ -29,21 +34,20 @@ export class DriverDataAccess {
 		}
 	}
 
-	async createDriver(driverData: {
-		name: string;
-		email: string;
-		phone_number: string;
-		license_number: string;
-		password: string;
-	}): Promise<DriverType> {
+	async createDriver(driverData: CreateDriverServiceInput): Promise<DriverType> {
 		try {
-			const hashedPassword = await argon2.hash(driverData.password);
+			const hashedPassword = await argon2.hash(driverData.password_plaintext);
 
-			const driver = await Driver.create({
-				...driverData,
-				status: "offline",
+			const createData: DriverCreationAttributes = {
+				name: driverData.name,
+				email: driverData.email,
+				phone_number: driverData.phone_number,
+				license_number: driverData.license_number,
 				password: hashedPassword,
-			});
+				status: 'offline', // Default status for new driver
+			};
+
+			const driver = await Driver.create(createData);
 
 			console.log("[Driver Data Access] Driver created:", driver.toJSON());
 
@@ -56,7 +60,7 @@ export class DriverDataAccess {
 
 	async updateDriver(
 		driverId: string,
-		updateData: Partial<DriverType>
+		updateData: Partial<DriverType> & { password_plaintext?: string }
 	): Promise<DriverType | null> {
 		try {
 			const driver = await Driver.findOne({ where: { driver_id: driverId } });
@@ -65,12 +69,16 @@ export class DriverDataAccess {
 				return null;
 			}
 
+			// Separate password_plaintext from other update data
+			const { password_plaintext, ...driverModelUpdateData } = updateData;
+			const dataToUpdateDb: Partial<DriverType> = driverModelUpdateData; // DriverType is DriverAttributes
+
 			// If updating password, hash it first
-			if (updateData.password) {
-				updateData.password = await argon2.hash(updateData.password);
+			if (password_plaintext) {
+				dataToUpdateDb.password = await argon2.hash(password_plaintext);
 			}
 
-			await driver.update(updateData);
+			await driver.update(dataToUpdateDb);
 
 			return driver.toJSON() as DriverType;
 		} catch (error) {
@@ -90,11 +98,16 @@ export class DriverDataAccess {
 	}
 
 	async getAllDrivers(
-		filters: { status?: string } = {}
+		filters: { status?: DriverType['status'] } = {}
 	): Promise<DriverType[]> {
 		try {
+			const whereClause: Partial<DriverType> = {};
+			if (filters.status) {
+				whereClause.status = filters.status;
+			}
+
 			const drivers = await Driver.findAll({
-				where: { ...filters },
+				where: whereClause,
 				order: [["created_at", "DESC"]],
 			});
 
@@ -107,25 +120,25 @@ export class DriverDataAccess {
 
 	async verifyDriverCredentials(
 		email: string,
-		password: string
+		password_plaintext: string
 	): Promise<DriverType | null> {
 		try {
-			const driver = await Driver.findOne({ where: { email } });
+			const driverInstance = await Driver.findOne({ where: { email } });
 
-			if (!driver) {
+			if (!driverInstance) {
 				return null;
 			}
 
 			const passwordValid = await argon2.verify(
-				driver.get("password") as string,
-				password
+				driverInstance.password, // Direct access
+				password_plaintext
 			);
 
 			if (!passwordValid) {
 				return null;
 			}
 
-			return driver.toJSON() as DriverType;
+			return driverInstance.toJSON() as DriverType;
 		} catch (error) {
 			console.error("Error verifying driver credentials:", error);
 			throw error;
@@ -138,18 +151,28 @@ export class DriverDataAccess {
 		options?: { transaction?: Transaction }
 	): Promise<DriverType | null> {
 		try {
-			const driver = await Driver.findOne({ 
-				where: { driver_id: driverId },
-				transaction: options?.transaction
-			});
+			// Sequelize update method is often better for targeted updates
+			// and can return the number of affected rows or the updated instances (depending on dialect and options)
+			const [affectedCount] = await Driver.update(
+                { status }, 
+                { 
+                    where: { driver_id: driverId }, 
+                    transaction: options?.transaction,
+                    // returning: true, // For some dialects to return instances, but findOne after is safer for consistency
+                }
+            );
 
-			if (!driver) {
-				return null;
-			}
+            if (affectedCount === 0) {
+                return null; // Driver not found or status was already the same (no update occurred)
+            }
 
-			await driver.update({ status }, { transaction: options?.transaction });
+            // Refetch the driver to get the updated instance
+            const updatedDriver = await Driver.findOne({
+                where: { driver_id: driverId },
+                transaction: options?.transaction
+            });
 
-			return driver.toJSON() as DriverType;
+			return updatedDriver ? updatedDriver.toJSON() as DriverType : null;
 		} catch (error) {
 			console.error("Error updating driver status:", error);
 			throw error;
